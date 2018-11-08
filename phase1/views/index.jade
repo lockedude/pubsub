@@ -1,0 +1,11 @@
+extends layout
+block content
+  h1= title
+  p Welcome to #{title}
+  script(src='/javascripts/codemirror.js')
+  form#preview-form(method="post", action="/submitcode")
+    textarea#code.codemirror-textarea(name="code")
+    | 	
+    br
+    | 	
+    input#preview-form-submit(type="submit", name="preview-form-submit", value="Submit")
