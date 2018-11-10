@@ -7,6 +7,7 @@ const AWS = require('aws-sdk')
 const bodyParser = require('body-parser')
 const querystring = require('querystring')
 const https = require('https')
+const http = require('http')
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -15,6 +16,7 @@ AWS.config.update({
     region: "us-west-1",
 });
 
+https.globalAgent.options.secureProtocol = 'SSLv3_method';
 
 
 app.get('/', (req, res) => {
@@ -61,7 +63,7 @@ app.post('/publish', (req,res) => {
             'body' : req.body.message
         });
         var post_options = {
-             host: data.Item.subscribers,
+             hostname: data.Item.subscribers,
              port: '49160',
              path: '/notify',
              method: 'POST',
@@ -70,16 +72,20 @@ app.post('/publish', (req,res) => {
                  'Content-Length': post_data.length
              }
         };
-        var post_req = https.request(post_options, (response) => {
+        var post_req = http.request(post_options, (response) => {
             console.log('statusCode:', response.statusCode);
             console.log('headers:', response.headers);
-            response.on('stuff', (d) => {
-                process.stdout.write(d);
+            response.on('dat', (d) => {
+               process.stdout.write(d);
             });
         });
-        post_req.write(post_data);
+        post_req.on('error', (e) => {
+            console.error(e);
+        });
         post_req.end();
         res.send("Sent the message to " + data.Item.subscribers);
+    }).catch(function (err) {
+        console.log(err);
     });
 })
 
