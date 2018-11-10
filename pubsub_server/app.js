@@ -1,12 +1,21 @@
 //app.js
 //
+
 const express = require('express')
 const app = express()
-const AWS = require('aws-sdk');
+const AWS = require('aws-sdk')
+const bodyParser = require('body-parser')
+const querystring = require('querystring')
+const https = require('https')
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 AWS.config.update({
     region: "us-west-1",
 });
+
+
 
 app.get('/', (req, res) => {
     res.send('This is our pub sub server')
@@ -23,7 +32,7 @@ app.post('/subscribe', (req,res) => {
         },
         UpdateExpression: "set subscribers = :s",
         ExpressionAttributeValues:{
-            ":s":req.body.subscriber
+            ":s": req.body.subscriber
         },
         ReturnValues: "UPDATED_NEW"
     };
@@ -31,10 +40,9 @@ app.post('/subscribe', (req,res) => {
     docClient.update(params, function(err, data) {
         if (err) {
             console.error("Unable to update item. Error JSON:", JSON.stringify(err, null, 2));
-        } else {
-            console.log("UpdateItem succeeded:", JSON.stringify(data, null, 2));
         }
     });
+    res.send("Successfully subscribed " + req.body.subscriber + " to " + req.body.subscription);
 })
 
 app.post('/publish', (req,res) => {
@@ -47,13 +55,31 @@ app.post('/publish', (req,res) => {
             "subscription": req.body.subscription
         }
     };
-    docClient.get(params, function(err, data) {
-        if (err) {
-            console.error("Unable to read item. Error JSON:", JSON.stringify(err, null, 2));
-        } else {
-            console.log("GetItem succeeded:", JSON.stringify(data, null, 2));
-            res.send(data); 
-        }
+    var getObjectPromise = docClient.get(params).promise();
+    getObjectPromise.then(function (data) {
+        var post_data = querystring.stringify({
+            'body' : req.body.message
+        });
+        var post_options = {
+             host: data.Item.subscribers,
+             port: '49160',
+             path: '/notify',
+             method: 'POST',
+             headers: {
+                 'Content-Type': 'application/x-www-form-urlencoded',
+                 'Content-Length': post_data.length
+             }
+        };
+        var post_req = https.request(post_options, (response) => {
+            console.log('statusCode:', response.statusCode);
+            console.log('headers:', response.headers);
+            response.on('stuff', (d) => {
+                process.stdout.write(d);
+            });
+        });
+        post_req.write(post_data);
+        post_req.end();
+        res.send("Sent the message to " + data.Item.subscribers);
     });
 })
 
@@ -61,4 +87,3 @@ app.post('/publish', (req,res) => {
 app.listen(8080, () => {
     console.log('Server is up on 8080')
 })
-
