@@ -59,9 +59,6 @@ app.post('/publish', (req,res) => {
     };
     var getObjectPromise = docClient.get(params).promise();
     getObjectPromise.then(function (data) {
-        var post_data = querystring.stringify({
-            'body' : req.body.message
-        });
         var post_options = {
              hostname: data.Item.subscribers,
              port: '49160',
@@ -69,7 +66,7 @@ app.post('/publish', (req,res) => {
              method: 'POST',
              headers: {
                  'Content-Type': 'application/x-www-form-urlencoded',
-                 'Content-Length': post_data.length
+                 'Message': req.body.message
              }
         };
         var post_req = http.request(post_options, (response) => {
@@ -83,7 +80,7 @@ app.post('/publish', (req,res) => {
             console.error(e);
         });
         post_req.end();
-        res.send("Sent the message to " + data.Item.subscribers);
+        res.send("Sent the message " + req.body.message + " to " + data.Item.subscribers);
     }).catch(function (err) {
         console.log(err);
     });
@@ -93,3 +90,4 @@ app.post('/publish', (req,res) => {
 app.listen(8080, () => {
     console.log('Server is up on 8080')
 })
+
