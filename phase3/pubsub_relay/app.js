@@ -18,6 +18,44 @@ AWS.config.update({
 
 https.globalAgent.options.secureProtocol = 'SSLv3_method';
 
+function sendToSubscribers(req, res) => {
+    var docClient = new AWS.DynamoDB.DocumentClient();
+    var table = "centralpubsubA";
+    var params = { 
+        TableName: table,
+        Key:{
+            "subscription": req.body.subscription
+        }
+    };
+    var getObjectPromise = docClient.get(params).promise();
+    getObjectPromise.then(function (data) {
+        var post_options = {
+             hostname: data.Item.subscribers,
+             port: '49160',
+             path: '/notify',
+             method: 'POST',
+             headers: {
+                 'Content-Type': 'application/x-www-form-urlencoded',
+                 'Message': req.body.message
+             }
+        };
+        var post_req = http.request(post_options, (response) => {
+            console.log('statusCode:', response.statusCode);
+            console.log('headers:', response.headers);
+            response.on('dat', (d) => {
+               process.stdout.write(d);
+            });
+        });
+        post_req.on('error', (e) => {
+            console.error(e);
+        });
+        post_req.end();
+        res.send("Sent the message " + req.body.message + " to " + data.Item.subscribers);
+    }).catch(function (err) {
+        console.log(err);
+    });
+}
+
 
 app.get('/', (req, res) => {
     res.send('This is our pub sub server')
@@ -47,10 +85,37 @@ app.post('/subscribe', (req,res) => {
     res.send("Successfully subscribed " + req.body.subscriber + " to " + req.body.subscription);
 })
 
-app.post('/publish', (req,res) => {
+app.post('/relay', (req, res) => {
+    sendToSubscribers(req,res);
+})   
+
+app.post('/publish', (req, res) => {
+    //Sending relay request to other Relay hosts
+    var relay_options = {
+         hostname: ec2-18-144-14-58.us-west-1.compute.amazonaws.com,
+         port: '49160',
+         path: '/relay',
+         method: 'POST',
+         headers: {
+             'Content-Type': 'application/x-www-form-urlencoded',
+         },
+         body: req
+    };
+    var relay_req = http.request(relay_options, (response) => {
+         console.log('statusCode:', response.statusCode);
+         console.log('headers:', response.headers);
+         response.on('dat', (d) => {
+             process.stdout.write(d);
+         });
+    });
+    relay_req.on('error', (e) => {
+        console.error(e);
+    });
+    relay_req.end();
+
     //DynamoDB variables
     var docClient = new AWS.DynamoDB.DocumentClient();
-    var table = "centralpubsub";
+    var table = "centralpubsubA";
     var params = {
         TableName: table,
         Key:{
