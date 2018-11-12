@@ -1,6 +1,3 @@
-//app.js
-//
-
 const express = require('express')
 const app = express()
 const AWS = require('aws-sdk')
@@ -18,7 +15,7 @@ AWS.config.update({
 
 https.globalAgent.options.secureProtocol = 'SSLv3_method';
 
-function sendToSubscribers(req, res) => {
+function sendToSubscribers(req, res) {
     var docClient = new AWS.DynamoDB.DocumentClient();
     var table = "centralpubsubA";
     var params = { 
@@ -62,9 +59,9 @@ app.get('/', (req, res) => {
 })
 
 app.post('/subscribe', (req,res) => {
-    //DynamoDB variables
+    //DyanoDB variables
     var docClient = new AWS.DynamoDB.DocumentClient();
-    var table = "centralpubsub";
+    var table = "centralpubsubA";
     var params = {
         TableName: table,
         Key:{
@@ -90,16 +87,17 @@ app.post('/relay', (req, res) => {
 })   
 
 app.post('/publish', (req, res) => {
-    //Sending relay request to other Relay hosts
+    //Sending Relay request to other Relay hosts
     var relay_options = {
-         hostname: ec2-18-144-14-58.us-west-1.compute.amazonaws.com,
+         hostname: 'ec2-54-215-216-181.us-west-1.compute.amazonaws.com',
          port: '49160',
          path: '/relay',
          method: 'POST',
          headers: {
              'Content-Type': 'application/x-www-form-urlencoded',
-         },
-         body: req
+             'Subscription': req.body.subscription,
+             'Message': req.body.message
+         }
     };
     var relay_req = http.request(relay_options, (response) => {
          console.log('statusCode:', response.statusCode);
@@ -112,47 +110,9 @@ app.post('/publish', (req, res) => {
         console.error(e);
     });
     relay_req.end();
-
-    //DynamoDB variables
-    var docClient = new AWS.DynamoDB.DocumentClient();
-    var table = "centralpubsubA";
-    var params = {
-        TableName: table,
-        Key:{
-            "subscription": req.body.subscription
-        }
-    };
-    var getObjectPromise = docClient.get(params).promise();
-    getObjectPromise.then(function (data) {
-        var post_options = {
-             hostname: data.Item.subscribers,
-             port: '49160',
-             path: '/notify',
-             method: 'POST',
-             headers: {
-                 'Content-Type': 'application/x-www-form-urlencoded',
-                 'Message': req.body.message
-             }
-        };
-        var post_req = http.request(post_options, (response) => {
-            console.log('statusCode:', response.statusCode);
-            console.log('headers:', response.headers);
-            response.on('dat', (d) => {
-               process.stdout.write(d);
-            });
-        });
-        post_req.on('error', (e) => {
-            console.error(e);
-        });
-        post_req.end();
-        res.send("Sent the message " + req.body.message + " to " + data.Item.subscribers);
-    }).catch(function (err) {
-        console.log(err);
-    });
+    sendToSubscribers(req,res);
 })
-
 
 app.listen(8080, () => {
     console.log('Server is up on 8080')
 })
-
